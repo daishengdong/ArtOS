@@ -1,4 +1,4 @@
-TARGET	= boot.bin a.img
+TARGET	= boot.bin
 
 default:
 	make run
@@ -7,11 +7,11 @@ boot.bin: boot.asm Makefile
 	# nasm boot.asm -o boot.bin
 	nasm $< -o $@ 
 
-image:
+bin:
 	make boot.bin
 
 install:
-	make image
+	make bin
 	dd if=boot.bin of=a.img bs=512 count=1 conv=notrunc
 
 clean:
