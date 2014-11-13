@@ -26,12 +26,12 @@ DA_CCO      EQU 9Ch     ; 存在的只执行一致代码段属性值
 DA_CCOR     EQU 9Eh     ; 存在的可执行可读一致代码段属性值
 
 ; 系统段描述符类型
-DA_LDT      EQU 90h     ; 局部描述符表段类型值
-DA_TaskGate EQU 90h     ; 任务门类型值
-DA_386TSS   EQU 90h     ; 可用 386 任务状态段类型值
-DA_386CGate EQU 90h     ; 386 调用门类型值
-DA_386IGate EQU 90h     ; 386 中断门类型值
-DA_386TGate EQU 90h     ; 386 陷阱门类型值
+DA_LDT      EQU 82h     ; 局部描述符表段类型值
+DA_TaskGate EQU 85h     ; 任务门类型值
+DA_386TSS   EQU 89h     ; 可用 386 任务状态段类型值
+DA_386CGate EQU 8Ch     ; 386 调用门类型值
+DA_386IGate EQU 8Eh     ; 386 中断门类型值
+DA_386TGate EQU 8Fh     ; 386 陷阱门类型值
 
 
 ; 描述符
