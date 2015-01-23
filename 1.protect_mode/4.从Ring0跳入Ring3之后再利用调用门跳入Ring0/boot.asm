@@ -13,23 +13,23 @@ jmp LABEL_BEGIN
 [SECTION .gdt]
 ; GDT
 ;                                   段基址      段界限                  属性
-LABEL_GDT:              Descriptor  0,          0,                      0               ; 空描述符
-LABEL_DESC_NORMAL:      Descriptor  0,          0ffffh,                 DA_DRW          ; Normal 描述符
-LABEL_DESC_CODE32:      Descriptor  0,          SegCode32Len - 1,       DA_C + DA_32    ; 非一致代码段, 32 位
-LABEL_DESC_CODE16:      Descriptor  0,          0ffffh,                 DA_C            ; 非一致代码段, 16 位
-LABEL_DESC_CODE_DEST:   Descriptor  0,          SegCodeDestLen - 1,     DA_C + DA_32    ; 非一致代码段, 32 位
+LABEL_GDT:              Descriptor  0,          0,                      0                       ; 空描述符
+LABEL_DESC_NORMAL:      Descriptor  0,          0ffffh,                 DA_DRW                  ; Normal 描述符
+LABEL_DESC_CODE32:      Descriptor  0,          SegCode32Len - 1,       DA_C + DA_32            ; 非一致代码段, 32 位
+LABEL_DESC_CODE16:      Descriptor  0,          0ffffh,                 DA_C                    ; 非一致代码段, 16 位
+LABEL_DESC_CODE_DEST:   Descriptor  0,          SegCodeDestLen - 1,     DA_C + DA_32            ; 非一致代码段, 32 位
 LABEL_DESC_CODE_RING3:  Descriptor  0,          SegCodeRing3Len - 1,    DA_C + DA_32 + DA_DPL3
-LABEL_DESC_DATA:        Descriptor  0,          DataLen - 1,            DA_DRW          ; Data
-LABEL_DESC_STACK:       Descriptor  0,          TopOfStack,             DA_DRWA + DA_32 ; Stack, 32 位
+LABEL_DESC_DATA:        Descriptor  0,          DataLen - 1,            DA_DRW                  ; Data
+LABEL_DESC_STACK:       Descriptor  0,          TopOfStack,             DA_DRWA + DA_32         ; Stack, 32 位
 LABEL_DESC_STACK3:      Descriptor  0,          TopOfStack3,            DA_DRWA + DA_32 + DA_DPL3
-LABEL_DESC_LDT:         Descriptor  0,          LDTLen - 1,             DA_LDT          ; LDT
-LABEL_DESC_TSS:         Descriptor  0,          TSSLen - 1,             DA_386TSS       ; TSS
-LABEL_DESC_VIDEO:       Descriptor  0B8000h,    0ffffh,                 DA_DRW + DA_DPL3; 显存首地址
+LABEL_DESC_LDT:         Descriptor  0,          LDTLen - 1,             DA_LDT                  ; LDT
+LABEL_DESC_TSS:         Descriptor  0,          TSSLen - 1,             DA_386TSS               ; TSS
+LABEL_DESC_VIDEO:       Descriptor  0B8000h,    0ffffh,                 DA_DRW + DA_DPL3        ; 显存首地址
 ; GDT 结束
 
 
-; 门                            目标选择子          偏移 DCount 属性
-LABEL_CALL_GATE_TEST:   Gate    SelectorCodeDest,   0,  0,  DA_386CGate + DA_DPL3
+; 门                            目标选择子          偏移    DCount  属性
+LABEL_CALL_GATE_TEST:   Gate    SelectorCodeDest,   0,      0,      DA_386CGate + DA_DPL3
 
 GdtLen      equ $ - LABEL_GDT   ; GDT 长度
 GdtPtr      dw  GdtLen - 1      ; GDT 界限
