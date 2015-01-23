@@ -74,6 +74,10 @@ _ARDStruct:			; Address Range Descriptor Structure
 	_dwType:		    dd	0
 _PageTableNumber		dd	0
 
+_SavedIDTR:             dw  0   ; 用于保存 IDTR
+                        dd  0
+_SavedIMREG             db  0   ; 中断屏蔽寄存器值
+
 _MemChkBuf: times	256	db	0
 
 ; 保护模式下使用这些符号
@@ -92,10 +96,36 @@ ARDStruct		    equ	_ARDStruct	    - $$
 	dwType		    equ	_dwType		    - $$
 MemChkBuf		    equ	_MemChkBuf	    - $$
 
+SavedIDTR           equ _SavedIDTR      - $$
+SavedIMREG          equ _SavedIMREG     - $$
+
 PageTableNumber		equ	_PageTableNumber- $$
 
 DataLen			    equ	$ - LABEL_DATA
 ; END of [SECTION .data1]
+
+
+; IDT
+[SECTION .idt]
+ALIGN   32
+[BITS   32]
+LABEL_IDT:
+; 门                目标选择子      偏移                DCount  属性
+%rep 32
+            Gate    SelectorCode32, SpuriousHandler,    0,      DA_386IGate
+%endrep
+
+; Init8259A 中已经将时钟中断 IRQ0 映射到 0x20h 号中断向量上了
+.020h:      Gate    SelectorCode32, ClockHandler,       0,      DA_386IGate
+%rep 95
+            Gate    SelectorCode32, SpuriousHandler,    0,      DA_386IGate
+%endrep
+.080h:      Gate    SelectorCode32, UserIntHandler,     0,      DA_386IGate
+
+IdtLen  equ $ - LABEL_IDT
+IdtPtr  dw  IdtLen - 1      ; 段界限
+        dd  0               ; 基地址
+; END of [SECTION .idt]
 
 
 ; 全局堆栈段
@@ -185,14 +215,31 @@ LABEL_MEM_CHK_OK:
 	xor	eax, eax
 	mov	ax, ds
 	shl	eax, 4
-	add	eax, LABEL_GDT		; eax <- gdt 基地址
+	add	eax, LABEL_GDT		    ; eax <- gdt 基地址
 	mov	dword [GdtPtr + 2], eax	; [GdtPtr + 2] <- gdt 基地址
+
+    ; 为加载 IDT 作准备
+    xor eax, eax
+    mov ax, ds
+    shl eax, 4
+    add eax, LABEL_IDT          ; eax <- idt 基地址
+    mov dword [IdtPtr + 2], eax ; [IdtPtr + 2] <- idt 基地址
+
+    ; 保存 IDTR
+    sidt [_SavedIDTR]
+
+    ; 保存中断屏蔽寄存器(IMREG)值
+    in al, 21h
+    mov [_SavedIMREG], al
 
 	; 加载 GDTR
 	lgdt	[GdtPtr]
 
 	; 关中断
-	cli
+	; cli
+
+    ; 加载 IDTR
+    lidt    [IdtPtr]
 
 	; 打开地址线A20
 	in	al, 92h
@@ -216,6 +263,11 @@ LABEL_REAL_ENTRY:		; 从保护模式跳回到实模式就到了这里
 	mov	ss, ax
 
 	mov	sp, [_wSPValueInRealMode]
+
+    lidt [_SavedIDTR]       ; 恢复 IDTR 的原值
+
+    mov al, [_SavedIMREG]   ; 恢复中断屏蔽寄存器(IMREG)的原值
+    out 21h, al
 
 	in	al, 92h		; `.
 	and	al, 11111101b	;  | 关闭 A20 地址线
@@ -243,6 +295,11 @@ LABEL_SEG_CODE32:
 
 	mov	esp, TopOfStack
 
+    call Init8259A
+
+    int 080h
+    sti                 ; 开中
+    ; jmp $
 
 	; 下面显示一个字符串
     push szPMMessage
@@ -257,8 +314,113 @@ LABEL_SEG_CODE32:
 
     call PagingDemo             ; 演示改变页目录的效果
 
+    call SetRealmode8259A
+
 	; 到此停止
 	jmp	SelectorCode16:0
+
+; Init8259A ---------------------------------------------------------------------------------------------
+Init8259A:
+    mov al, 011h
+    out 020h, al                ; 主 8259, ICW1
+    call io_delay
+
+    out 0A0h, al                ; 从 8259, ICW1
+    call io_delay
+
+    mov al, 020h                ; IRQ0 对应中断向量 0x20
+    out 021h, al                ; 主 8259, ICW2
+    call io_delay
+
+    mov al, 028h                ; IRQ8 对应中断向量 0x28
+    out 0A1h, al                ; 从 8259, ICW2
+    call io_delay
+
+    mov al, 004h                ; IR2 对应从 8259
+    out 021h, al                ; 主 8259, ICW3
+    call io_delay
+
+    mov al, 002h                ; 对应主 8259 的 IR2
+    out 0A1h, al                ; 从 8259, ICW3
+    call io_delay
+
+    mov al, 001h
+    out 021h, al                ; 主 8259, ICW4
+    call io_delay
+
+    out 0A1h, al                ; 从 8259, ICW4
+    call io_delay
+
+    mov al, 11111110b           ; 仅仅开启定时器中断
+    ; mov al, 11111111b         ; 屏蔽主 8259 所有中断
+    out 021h, al                ; 主 8259, OCW1
+    call io_delay
+
+    mov al, 11111111b           ; 屏蔽从 8259 所有中断
+    out 0A1h, al                ; 从 8259, OCW1
+    call io_delay
+
+    ret
+; Init8259A ---------------------------------------------------------------------------------------------
+
+; SetRealmode8259A ---------------------------------------------------------------------------------------------
+SetRealmode8259A:
+    mov ax, SelectorData
+    mov fs, ax
+
+    mov al, 017h
+    out 020h, al        ; 主 8259, ICW1
+    call io_delay
+
+    ; 实模式下时钟中断中断向量号为 8
+    mov al, 008h        ; IRQ0 对应中断向量 0x8
+    out 021h, al        ; 主 8259, ICW2
+    call io_delay
+
+    mov al, 001h
+    out 021h, al        ; 主 8259, ICW4
+    call io_delay
+
+    ; 恢复中断屏蔽寄存器(IMREG)的原值
+    mov al, [fs:SavedIMREG]
+    out 021h, al
+    call io_delay
+
+    ret
+; SetRealmode8259A ---------------------------------------------------------------------------------------------
+
+
+io_delay:
+    nop
+    nop
+    nop
+    nop
+    ret
+
+; int handler ---------------------------------------------------------------
+_ClockHandler:
+ClockHandler    equ _ClockHandler - $$
+    inc byte [gs:((80 * 0 + 70) * 2)]       ; 屏幕第 0 行, 第 70 列
+    mov al, 20h
+    out 20h, al                             ; 发送 EOI
+    iretd
+
+_UserIntHandler:
+UserIntHandler  equ _UserIntHandler - $$
+    mov ah, 0Ch                             ; 0000: 黑底    1100: 红字
+    mov al, 'I'
+    mov [gs:((80 * 0 + 70) * 2)], ax        ; 屏幕第 0 行, 第 70 列
+    iretd
+
+_SpuriousHandler:
+SpuriousHandler equ _SpuriousHandler - $$
+    mov ah, 0Ch                             ; 0000: 黑底    1100: 红字
+    mov al, '!'
+    mov [gs:((80 * 0 + 75) * 2)], ax        ; 屏幕第 0 行, 第 75 列
+    iretd
+; ---------------------------------------------------------------------------
+    
+
 
 ; 启动分页机制------------------------------------------------------------------------
 SetupPaging:
