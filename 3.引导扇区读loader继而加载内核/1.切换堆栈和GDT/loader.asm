@@ -1,3 +1,5 @@
+; %define _BOOT_DEBUG__
+
 org 0100h
 jmp short LABEL_START   ; Start
 
@@ -46,27 +48,32 @@ LABEL_START:
     ;----------------------------------------------------------------------------
     mov ebx, 0
     mov di, _MemChkBuf
-.loop:
+.MemChkLoop:
     ; int 15h 的调用参数
     mov eax, 0E820h         ; eax = 0E820
     mov ecx, 20             ; ecx = 一个地址范围描述符的大小, 20 个字节
     mov edx, 0534D4150h
     int 15h
-    jc LABEL_MEM_CHK_FAIL   ; CF = 0 没错, CF = 1 有错
+    jc .MemChkFail          ; CF = 0 没错, CF = 1 有错
     add di, 20
     inc dword [_dwMCRNumber]
     cmp ebx, 0              ; ebx == 0 && CF == 0 => 最后一个地址范围描述符
-    jne .loop
-    jmp LABEL_MEM_CHK_OK
-LABEL_MEM_CHK_FAIL:
+    jne .MemChkLoop
+    jmp .MemChkOK
+.MemChkFail:
     mov dword [_dwMCRNumber], 0
-LABEL_MEM_CHK_OK:
-
+.MemChkOK:
 
     ;----------------------------------------------------------------------------
     ; step2: 下面从 A 盘的根目录寻找 KERNEL.BIN
     ;----------------------------------------------------------------------------
     mov word [wSectorNo], SectorNoOfRootDirectory
+
+    ; 软驱复位
+    xor ah, ah
+    xor dl, dl
+    int 13h
+
 LABEL_SEARCH_IN_ROOT_DIR_BEGIN:
     cmp word [wRootDirSizeForLoop], 0       ; 判断根目录区是不是已经读完
     jz LABEL_NO_KERNELBIN                   ; 如果读完表示没有找到 KERNEL.BIN
@@ -115,7 +122,6 @@ LABEL_GOTO_NEXT_SECTOR_IN_ROOT_DIR:
 LABEL_NO_KERNELBIN:
     mov dh, 2                               ; "No KERNEL."
     call DispStrRealMode                    ; 显示字符串
-
 %ifdef _BOOT_DEBUG__
     mov ax, 4c00h                           ; 没有找到 KERNEL.BIN, 回到 DOS
     int 21
@@ -125,7 +131,7 @@ LABEL_NO_KERNELBIN:
 
 LABEL_FILENAME_FOUND:			            ; 找到 KERNEL.BIN 后便来到这里继续
 	mov	ax, RootDirSectors
-	and	di, 0FFE0h		                    ; di -> 当前条目的开始
+	and di, 0FFE0h		                    ; di -> 当前条目的开始
 
     ; 保存 KERNEL.BIN 文件大小
     push eax
@@ -170,7 +176,6 @@ LABEL_GOON_LOADING_FILE:
 	jmp	LABEL_GOON_LOADING_FILE
 LABEL_FILE_LOADED:
     call KillMotor                          ; 关闭软驱马达
-
 	mov	dh, 1                               ; "Ready."
 	call DispStrRealMode                    ; 显示字符串
 
@@ -178,19 +183,19 @@ LABEL_FILE_LOADED:
     ; step3: 下面准备跳入保护模式
     ;----------------------------------------------------------------------------
     ; 加载 GDTR
-    lgdt    [GdtPtr]
+    lgdt [GdtPtr]
 
     ; 关中断
     cli
 
     ; 打开地址线 A20
-    in  al, 92h
-    or  al, 00000010b
+    in al, 92h
+    or al, 00000010b
     out 92h, al
 
     ; 准备切换到保护模式
     mov eax, cr0
-    or  eax, 1
+    or eax, 1
     mov cr0, eax
 
     ; 真正进入保护模式
@@ -367,9 +372,9 @@ LABEL_PM_START:
     call DispMemInfo
     call SetupPaging
 
-    mov ah, 0Fh                         ; 0000: 黑底    1111: 白字
-    mov al, 'P'
-    mov [gs:((80 * 0 + 39) * 2)], ax    ; 屏幕第 0 行, 第 39 列.
+    ; mov ah, 0Fh                         ; 0000: 黑底    1111: 白字
+    ; mov al, 'P'
+    ; mov [gs:((80 * 0 + 39) * 2)], ax    ; 屏幕第 0 行, 第 39 列.
 
     call InitKernel
 
@@ -542,7 +547,7 @@ MemCpy:
 
     dec ecx             ; 计数器减一
     jmp .1              ; 循环
-.2
+.2:
 	mov	eax, [ebp + 8]  ; 返回值
 
 	pop	ecx
@@ -702,7 +707,6 @@ _szMemChkTitle:			db	"BaseAddrL BaseAddrH LengthLow LengthHigh   Type", 0Ah, 0	;
 _szRAMSize			    db	"RAM size:", 0
 _szReturn			    db	0Ah, 0
 ; 变量
-_wSPValueInRealMode		dw	0
 _dwMCRNumber:			dd	0	; Memory Check Result
 _dwDispPos:			    dd	(80 * 6 + 0) * 2	; 屏幕第 6 行, 第 0 列。
 _dwMemSize:			    dd	0
@@ -730,11 +734,7 @@ ARDStruct		    equ	BaseOfLoaderPhyAddr + _ARDStruct
 	dwType		    equ	BaseOfLoaderPhyAddr + _dwType
 MemChkBuf		    equ	BaseOfLoaderPhyAddr + _MemChkBuf
 
-DataLen			    equ	$ - LABEL_DATA
-; END of [SECTION .data1]
-
-
-;----------------------------------------------------------------------------
 ; 堆栈就在数据段的末尾
-StackSpace: times   1000h   db  0
+StackSpace: times   1000h    db  0
 TopOfStack  equ BaseOfLoaderPhyAddr + $ ; 栈顶
+; END of [SECTION .data1]

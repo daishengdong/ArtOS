@@ -1,6 +1,6 @@
 ;----------------------------------------------------------------------------
 ; 下面是 FAT12 磁盘的头
-BS_OEMName      DB 'ArthurDD'	; OEM String, 必须 8 个字节
+BS_OEMName      DB 'ArthurDd'	; OEM String, 必须 8 个字节
 BPB_BytsPerSec	DW 512		    ; 每扇区字节数
 BPB_SecPerClus	DB 1		    ; 每簇多少扇区
 BPB_RsvdSecCnt	DW 1		    ; Boot 记录占用多少扇区
