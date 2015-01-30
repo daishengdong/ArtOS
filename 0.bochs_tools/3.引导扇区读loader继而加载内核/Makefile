@@ -41,13 +41,5 @@ $(KERNEL_BIN) : $(KERNEL)
 	ld -s -Ttext 0x30400 -o $@ $(subst .asm,.o,$(KERNEL))
 
 run:
-	cp ~/Desktop/boot.asm .
-	cp ~/Desktop/load.inc .
-	cp ~/Desktop/loader.asm .
-	cp ~/Desktop/kernel.asm .
-	cp ~/Desktop/fat12hdr.inc .
-	cp ~/Desktop/kernel.asm .
-	cp ~/Desktop/lib.inc .
-	cp ~/Desktop/pm.inc .
 	make install
 	bochs -f bochsrc

@@ -6,7 +6,7 @@
     org 07c00h
 %endif
 
-;================================================================================================
+;----------------------------------------------------------------------------
 %ifdef _BOOT_DEBUG__
 BaseOfStack             equ 0100h       ; 调试状态下堆栈基地址(栈底, 从这个地址向低地址生长)
 %else
@@ -15,38 +15,15 @@ BaseOfStack             equ 07c00h      ; 堆栈基地址(栈底, 从这个地�
 
 BaseOfLoader            equ 09000h      ; LOADER.BIN 被加载到的位置——段地址
 OffsetOfLoader          equ 0100h       ; LOADER.BIN 被加载到的位置——偏移地址
-RootDirSectors          equ 14          ; 根目录占用空间(扇区数)
-                                        ; 一个条目 32 字节, 根目录最多有 0xE0 个文件, 故占 14 个扇区
-SectorNoOfRootDirectory equ 19          ; Root Directory 的第一个扇区号
-SectorNoOfFAT1          equ 1           ; FAT1 的第一个扇区号 = BPB_RsvdSecCnt
-DeltaSectorNo           equ 17          ; DeltaSectorNo = BPB_RsvdSecCnt + (BPB_NumFATs * FATSz) - 2
-                                        ; 文件的开始 Sector 号 = DirEntry 中的开始 Sector 号 + 根目录占用 Sector 数目 + DeltaSectorNo
-;================================================================================================
 
 jmp short LABEL_START   ; Start to boot
 nop                     ; 这个 nop 不可少
 
-; 下面是 FAT12 磁盘的头
-BS_OEMName      DB 'ArthurDD'	; OEM String, 必须 8 个字节
-BPB_BytsPerSec	DW 512		    ; 每扇区字节数
-BPB_SecPerClus	DB 1		    ; 每簇多少扇区
-BPB_RsvdSecCnt	DW 1		    ; Boot 记录占用多少扇区
-BPB_NumFATs	    DB 2		    ; 共有多少 FAT 表
-BPB_RootEntCnt	DW 224		    ; 根目录文件数最大值
-BPB_TotSec16	DW 2880		    ; 逻辑扇区总数
-BPB_Media	    DB 0xF0		    ; 媒体描述符
-BPB_FATSz16	    DW 9		    ; 每FAT扇区数
-BPB_SecPerTrk	DW 18		    ; 每磁道扇区数
-BPB_NumHeads	DW 2		    ; 磁头数(面数)
-BPB_HiddSec	    DD 0		    ; 隐藏扇区数
-BPB_TotSec32	DD 0		    ; wTotalSectorCount为0时这个值记录扇区数
-BS_DrvNum	    DB 0		    ; 中断 13 的驱动器号
-BS_Reserved1	DB 0		    ; 未使用
-BS_BootSig	    DB 29h		    ; 扩展引导标记 (29h)
-BS_VolID	    DD 0		    ; 卷序列号
-BS_VolLab	    DB 'ArtOSHduDai'; 卷标, 必须 11 个字节
-BS_FileSysType	DB 'FAT12   '	; 文件系统类型, 必须 8个字节  
+; 下面是 FAT12 磁盘的头, 之所以包含它实因为下面用到了磁盘的一些信息
+%include "fat12hdr.inc"
 
+
+;----------------------------------------------------------------------------
 LABEL_START:
 	mov	ax, cs
 	mov	ds, ax
@@ -169,16 +146,15 @@ LABEL_FILE_LOADED:
 	mov	dh, 1                               ; "Ready."
 	call DispStr                            ; 显示字符串
 
-; *****************************************************************************************************
+;----------------------------------------------------------------------------
 	jmp	BaseOfLoader:OffsetOfLoader	        ; 这一句正式跳转到已加载到内
 						                    ; 存中的 LOADER.BIN 的开始处，
 						                    ; 开始执行 LOADER.BIN 的代码。
 						                    ; Boot Sector 的使命到此结束。
-; *****************************************************************************************************
+;----------------------------------------------------------------------------
 
 
-
-;================================================================================================
+;----------------------------------------------------------------------------
 ; 变量
 wRootDirSizeForLoop dw  RootDirSectors      ; Root Directory 占用的扇区数
                                             ; 在循环中会递减至 0
@@ -192,7 +168,7 @@ MessageLength       equ 9
 BootMessage         db  "Booting  "         ; 9 字节, 不够用空格补齐, 序号 0
 Message1            db  "Ready.   "         ; 9 字节, 不够用空格补齐, 序号 1
 Message2            db  "NO LOADER"         ; 9 字节, 不够用空格补齐, 序号 2
-;================================================================================================
+
 
 ;----------------------------------------------------------------------------
 ; 显示一个字符串, 函数开始时 dh 中应该是字符串序号(0-based)
@@ -212,7 +188,6 @@ DispStr:
     mov dl, 0
     int 10h                 ; int 10h
     ret
-;----------------------------------------------------------------------------
 
 
 ;----------------------------------------------------------------------------
@@ -257,6 +232,7 @@ ReadSector:
     ret
 
 
+;----------------------------------------------------------------------------
 ; 找到序号为 ax 的 Sector 在 FAT 中的条目, 结果放在 ax 中
 ; 需要注意的是, 中间需要读 FAT 的扇区到 es:bx 处, 所以函数一开始保存了 es 和 bx
 GetFATEntry:
@@ -309,5 +285,7 @@ LABEL_GET_FAT_ENRY_OK:
 	pop	es
 	ret
 
+
+;----------------------------------------------------------------------------
 times 	510 - ($ - $$)	db	0	; 填充剩下的空间，使生成的二进制代码恰好为512字节
 dw 	0xaa55				        ; 结束标志
