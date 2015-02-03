@@ -1,0 +1,23 @@
+1. global.c
+(1) 通过玩弄 GLOBAL_VARIABLES_HERE 宏的技巧定义了 global.h 中声明的全局变量
+
+2. i8259.c
+(1) 对 i8259 进行初始化
+
+3. kernel.asm
+(1) 切换堆栈和 GDT, IDT
+(2) 定义中断处理入口
+
+4. protect.c
+(1) 中断处理
+
+5. start.c
+(1) 将 loader 中的 GDT, IDT 复制到内核中
+(2) 初始化中断向量(通过调用 protect.c 中的 init_prot)
+
+6. main.c
+(1) 初始化就绪进程的 PCB
+(2) 定义了一个简单的进程体
+
+7. clock.c
+(1) 时钟中断与进程调度模块
