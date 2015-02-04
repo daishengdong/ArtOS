@@ -1,0 +1,10 @@
+1. boot.asm
+(1) 加载根目录中的 loader.bin
+
+2. loader.asm
+(1) 获取内存信息
+(2) 加载根目录中的 kernel.bin
+(3) 进入保护模式
+(4) 开启分页机制
+(5) 加载 kernel.bin 的 program header 内容到内存
+(6) 控制权交给内核
